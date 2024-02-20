@@ -75,7 +75,6 @@ void main() {
       expect(userInfo.email, 'maidiem1314@gmail.com');
       expect(userInfo.phoneNumber, '0372384772');
       expect(userInfo.birthDate, '29/10/2003');
-      expect(userInfo.address, isA<AddressInfo>());
       expect(userInfo.address!.province!.name, 'Hà Nội');
       expect(userInfo.address!.district!.name, 'Bắc Từ Liêm');
       expect(userInfo.address!.ward!.name, 'Phường Đức Thắng');
