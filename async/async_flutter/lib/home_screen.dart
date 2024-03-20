@@ -5,6 +5,8 @@ import 'package:async_flutter/article_model.dart';
 import 'package:async_flutter/saved_article.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,16 +16,158 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Article> _savedArticles = [];
-  // Danh sách các bài viết đã thích
+  String _searchQuery = '';
+  String _currentCategory = 'All';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('News'),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Ngày tháng
+              Text(
+                DateFormat('EEE, dd\'th\' MMMM yyyy').format(DateTime.now()),
+                style: GoogleFonts.tinos(
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Title
+              Text(
+                'Explore',
+                style: GoogleFonts.tinos(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Input tìm kiếm
+              Container(
+                margin: const EdgeInsets.only(right: 16.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16.0),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: TextFormField(
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value.toLowerCase();
+                    });
+                  },
+                  decoration: InputDecoration(
+                    fillColor: Colors.grey.shade300,
+                    filled: true,
+                    border: InputBorder.none,
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search for article',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Thanh danh sách thể loại
+              SizedBox(
+                height: 40,
+                child: CategoriesBar(onCategorySelected: _updateCategory),
+              ),
+              // Danh sách bài báo
+              const SizedBox(height: 24),
+              Expanded(
+                  child: ArticleList(
+                searchQuery: _searchQuery,
+                category: _currentCategory,
+              )),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  void _updateCategory(String category) {
+    setState(() {
+      _currentCategory = category;
+    });
+  }
+}
+
+class CategoriesBar extends StatefulWidget {
+  final Function(String) onCategorySelected;
+  CategoriesBar({Key? key, required this.onCategorySelected}) : super(key: key);
+
+  @override
+  State<CategoriesBar> createState() => _CategoriesBarState();
+}
+
+class _CategoriesBarState extends State<CategoriesBar> {
+  List<String> categories = const [
+    'All',
+    'Politics',
+    'Sports',
+    'Health',
+    'Music',
+    'Tech'
+  ];
+
+  int currentCategory = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              currentCategory = index;
+            });
+            String selectedCategory = categories.elementAt(index);
+            widget.onCategorySelected(selectedCategory);
+          },
+          child: Container(
+            margin: const EdgeInsets.only(right: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+            ),
+            decoration: BoxDecoration(
+              color: currentCategory == index ? Colors.black : Colors.white,
+              border: Border.all(),
+              borderRadius: BorderRadius.circular(16.0),
+            ),
+            child: Center(
+              child: Text(
+                categories.elementAt(index),
+                style: TextStyle(
+                  color: currentCategory == index ? Colors.white : Colors.black,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ArticleList extends StatelessWidget {
+  const ArticleList(
+      {Key? key, required this.searchQuery, required this.category})
+      : super(key: key);
+  static List<Article> _savedArticles = [];
+  final String searchQuery;
+  final String category;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
       body: FutureBuilder(
-        future: getArticles(),
+        future: getArticles(category),
         builder: (context, snapshot) {
           switch (snapshot.connectionState) {
             case ConnectionState.none:
@@ -33,31 +177,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: CircularProgressIndicator(),
               );
             case ConnectionState.done:
-              final data = snapshot.data ?? [];
+              final List<Article> articles = snapshot.data ?? [];
+              final filteredArticles = articles.where((article) {
+                return article.title.toLowerCase().contains(searchQuery);
+              }).toList();
               return ListView.builder(
-                itemCount: data.length,
+                padding: const EdgeInsets.only(right: 16.0),
+                itemCount: filteredArticles.length,
                 itemBuilder: (context, index) {
-                  final articleData = data[index];
-                  return ListTile(
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  ArticleDetail(article: articleData)));
-                    },
-                    title: articleData.title != '[Removed]'
-                        ? Text(articleData.title,
-                            style: TextStyle(fontWeight: FontWeight.bold))
-                        : null,
-                    subtitle: Text("By " + articleData.author),
-                    leading: Image.network(
-                      articleData.urlToImage,
-                      width: 100,
-                      height: 250,
-                      fit: BoxFit.cover,
-                    ),
-                    trailing: Icon(Icons.more_vert),
+                  return ArticleTile(
+                    article: filteredArticles[index],
                   );
                 },
               );
@@ -79,9 +208,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<List<Article>> getArticles() async {
-    const url =
-        'https://newsapi.org/v2/everything?q=apple&from=2024-03-12&to=2024-03-12&sortBy=popularity&apiKey=...'; //apikey is private
+  Future<List<Article>> getArticles(String category) async {
+    String url = 'https://newsapi.org/v2/top-headlines?country=us';
+    if (category != 'All') {
+      url += '&category=$category';
+    }
+    url += '&apiKey=...'; //apikey is private
     final res = await http.get(Uri.parse(url));
     final body = json.decode(res.body) as Map<String, dynamic>;
     final List<Article> result = [];
@@ -90,13 +222,71 @@ class _HomeScreenState extends State<HomeScreen> {
         result.add(Article(
           title: article['title'],
           author: article['author'] ?? 'Unknown',
-          urlToImage: article['urlToImage'] ??
-              "https://developers.elementor.com/docs/assets/img/elementor-placeholder-image.png",
+          urlToImage: article['urlToImage'] ?? '',
           content: article['content'] ?? '',
         ));
       }
     }
 
     return result;
+  }
+}
+
+class ArticleTile extends StatelessWidget {
+  const ArticleTile({super.key, required this.article});
+
+  final Article article;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+        onTap: () {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => ArticleDetail(article: article)));
+        },
+        child: Container(
+          height: 128,
+          margin: const EdgeInsets.only(bottom: 8.0),
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.network(
+                  article.urlToImage,
+                  fit: BoxFit.cover,
+                  height: 128,
+                  width: 128,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 128,
+                      width: 128,
+                      color: Colors.lightBlue,
+                    );
+                  },
+                ),
+              ),
+              Expanded(
+                  child: ListTile(
+                title: Text(
+                  article.title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  article.author,
+                  style: TextStyle(fontSize: 10),
+                ),
+                dense: true,
+                trailing: Icon(Icons.more_vert),
+              )),
+            ],
+          ),
+        ));
   }
 }
