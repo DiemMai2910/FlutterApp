@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../../../devIoT"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "devIoT"
+	}
+}

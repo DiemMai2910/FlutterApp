@@ -1,0 +1,3 @@
+class SampleItemService{
+  loadItems
+}
