@@ -1,3 +1,0 @@
-class SampleItemService{
-  loadItems
-}
